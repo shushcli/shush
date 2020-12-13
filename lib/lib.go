@@ -16,12 +16,18 @@ import (
 )
 
 const (
-	keySize   = 32
-	nonceSize = 12
-	suffix    = ".shush"
+	keySize    = 32
+	nonceSize  = 12
+	encryptExt = ".shush"
+	shardExt   = ".shard"
 )
 
-var errInvalidKey = errors.New("invalid key file provided")
+var (
+	errInvalidKey        = errors.New("invalid key file provided")
+	errNotShushEncrypted = errors.New("provided file isn't shush encrypted")
+	errNotEnoughShards   = errors.New("You must supply at least 2 shards to attempt to combine them into a secret")
+	errFileExists        = func(path string) error { return fmt.Errorf("cannot write \"%s\"; file already exists", path) }
+)
 
 // Gen creates a new aes key and writes it to disk
 func Gen(keyName string) error {
@@ -68,7 +74,7 @@ func Split(file string, parts int, threshold int) error {
 // Merge reads the files, and writes the recovered secret
 func Merge(files []string) error {
 	if len(files) < 2 {
-		return fmt.Errorf("You must supply at least 2 shards to attempt to combine them into a secret")
+		return errNotEnoughShards
 	}
 
 	shards, err := readFiles(files)
@@ -102,22 +108,12 @@ func Merge(files []string) error {
 
 // Encrypt run aes encryption on file, using the key in keyFile
 func Encrypt(keyFile string, file string) error {
-	b64key, err := ioutil.ReadFile(keyFile)
+	gcm, err := getGCM(keyFile)
 	if err != nil {
 		return err
 	}
 
-	key := base64decode(b64key)
-	if len(key) != keySize {
-		return errInvalidKey
-	}
-
-	contents, err := ioutil.ReadFile(file)
-	if err != nil {
-		return err
-	}
-
-	block, err := aes.NewCipher(key)
+	plaintext, err := ioutil.ReadFile(file)
 	if err != nil {
 		return err
 	}
@@ -127,14 +123,8 @@ func Encrypt(keyFile string, file string) error {
 		return err
 	}
 
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		panic(err.Error())
-	}
-
-	ciphertext := gcm.Seal(nonce, nonce, contents, nil)
-
-	dst := fmt.Sprintf("%s%s", file, suffix)
+	dst := fmt.Sprintf("%s%s", file, encryptExt)
+	ciphertext := gcm.Seal(nonce, nonce, plaintext, nil)
 
 	err = safeWrite(dst, ciphertext, 0600)
 	if err != nil {
@@ -145,35 +135,20 @@ func Encrypt(keyFile string, file string) error {
 	return nil
 }
 
-// Decrypt run aes encryption on file, using the key in keyFile
-func Decrypt(keyFile string, file string) error {
-	b64key, err := ioutil.ReadFile(keyFile)
+// Decrypt decrypts a file that was encrypted with Encrypt, using the key in keyFile
+func Decrypt(keyFile string, src string) error {
+	gcm, err := getGCM(keyFile)
 	if err != nil {
 		return err
 	}
 
-	key := base64decode(b64key)
-	if len(key) != keySize {
-		return errInvalidKey
-	}
-
-	ciphertext, err := ioutil.ReadFile(file)
+	ciphertext, err := ioutil.ReadFile(src)
 	if err != nil {
 		return err
 	}
 
 	if len(ciphertext) < nonceSize {
-		return errors.New("provided file isn't shush encrypted")
-	}
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return err
-	}
-
-	gcm, err := cipher.NewGCM(block)
-	if err != nil {
-		return err
+		return errNotShushEncrypted
 	}
 
 	nonce, ciphertext := ciphertext[:nonceSize], ciphertext[nonceSize:]
@@ -183,23 +158,42 @@ func Decrypt(keyFile string, file string) error {
 		return err
 	}
 
-	fileWithoutSuffix := file[:len(file)-len(suffix)]
-	err = safeWrite(fileWithoutSuffix, plaintext, 0600)
+	dst := src[:len(src)-len(encryptExt)]
+	err = safeWrite(dst, plaintext, 0600)
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Successfully decrypted to %s\n", fileWithoutSuffix)
+	fmt.Printf("Successfully decrypted to %s\n", dst)
 
 	return nil
+}
+
+// returns GCM for encrypt/decrypt
+func getGCM(keyFile string) (cipher.AEAD, error) {
+	b64key, err := ioutil.ReadFile(keyFile)
+	if err != nil {
+		return nil, err
+	}
+
+	key := base64decode(b64key)
+	if len(key) != keySize {
+		return nil, errInvalidKey
+	}
+
+	block, err := aes.NewCipher(key)
+	if err != nil {
+		return nil, err
+	}
+
+	return cipher.NewGCM(block)
 }
 
 // file reading and writing stuff
 func writeShards(originalFileName string, shards [][]byte) (shardFiles []string, err error) {
 	shardFiles = make([]string, len(shards))
 	for i, shard := range shards {
-		fileName := fmt.Sprintf("%s.shard%d", originalFileName, i)
-		shardFiles[i] = fileName
+		shardFiles[i] = fmt.Sprintf("%s%s%d", originalFileName, shardExt, i)
 		err = safeWrite(shardFiles[i], base64encode(shard), 0600)
 		if err != nil {
 			return nil, err
@@ -229,7 +223,7 @@ func safeWrite(path string, data []byte, perms os.FileMode) (err error) {
 		return ioutil.WriteFile(path, data, perms)
 	}
 
-	return fmt.Errorf("cannot write \"%s\"; file already exists", path)
+	return errFileExists(path)
 }
 
 // encoding and decoding helpers

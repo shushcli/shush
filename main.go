@@ -26,12 +26,13 @@ var (
 	errDecryptMissingFileArg = errors.New("missing the filename to decrypt")
 )
 
+// these are global so that we can see if they got parsed in our error handler
 var splitCmd = flag.NewFlagSet("split", flag.ExitOnError)
 var encryptCmd = flag.NewFlagSet("encrypt", flag.ExitOnError)
 var decryptCmd = flag.NewFlagSet("decrypt", flag.ExitOnError)
 
 func main() {
-	err := route()
+	err := parseAndRun()
 
 	if err != nil {
 		fmt.Printf("Error: %s\n\n", err)
@@ -57,13 +58,15 @@ func main() {
 }
 
 // handle sub-commands
-func route() error {
+func parseAndRun() error {
 	if len(os.Args) < 2 {
 		return errMissingSubCommand
 	}
 
 	switch os.Args[1] {
 	case "generate":
+		fallthrough
+	case "gen":
 		return handleGen()
 	case "split":
 		return handleSplit()
@@ -78,30 +81,7 @@ func route() error {
 	}
 }
 
-func usage() {
-	fmt.Print(`
-USAGE:
-
-Generate a new AES Key:
-	shush key gen my.key
-
-Encrypt a secret with your key:
-	shush encrypt -key=my.key secrets.tar
-
-Split your key into 5 shards, requiring a threshold of at least 3 shards for recovery:
-	shush key split -t=3 -s=5 my.key
-	
-Merge shards back into an AES key:
-	shush key merge my.key.shard0 my.key.shard1 my.key.shard4
-
-Merge shards with a wildcard:
-	shush key merge my.key.shard*
-	
-Decrypt a secret with your key:
-	shush decrypt -key=my.key secrets.tar.shush
-`)
-}
-
+// Our handlers verify that the flags and args exist, but all actual filesystem checking happens in `lib`
 func handleGen() error {
 	if len(os.Args) < 3 {
 		return errMissingKeyFile
@@ -174,4 +154,28 @@ func handleDecrypt() error {
 	}
 
 	return lib.Decrypt(*keyFile, os.Args[3])
+}
+
+func usage() {
+	fmt.Print(`
+USAGE:
+
+Generate a new AES Key:
+	shush gen my.key
+
+Encrypt a secret with your key:
+	shush encrypt -key=my.key secrets.tar
+
+Split a file into 5 shards, requiring a threshold of at least 3 shards for recovery:
+	shush split -t=3 -s=5 my.key
+
+Merge shards back into their original file:
+	shush merge my.key.shard0 my.key.shard1 my.key.shard4
+
+Merge shards with a wildcard:
+	shush merge my.key.shard*
+
+Decrypt a secret with your key:
+	shush decrypt -key=my.key secrets.tar.shush
+`)
 }
