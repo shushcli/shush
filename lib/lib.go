@@ -196,9 +196,10 @@ func Decrypt(keyFile string, file string) error {
 
 // file reading and writing stuff
 func writeShards(originalFileName string, shards [][]byte) (shardFiles []string, err error) {
+	shardFiles = make([]string, len(shards))
 	for i, shard := range shards {
 		fileName := fmt.Sprintf("%s.shard%d", originalFileName, i)
-		shardFiles = append(shardFiles, fileName)
+		shardFiles[i] = fileName
 		err = safeWrite(shardFiles[i], base64encode(shard), 0600)
 		if err != nil {
 			return nil, err
@@ -207,14 +208,16 @@ func writeShards(originalFileName string, shards [][]byte) (shardFiles []string,
 	return
 }
 
+// readFiles returns a slice of byte slices
 func readFiles(files []string) (shards [][]byte, err error) {
-	for _, f := range files {
+	shards = make([][]byte, len(files))
+	for i, f := range files {
 		shard, err := ioutil.ReadFile(f)
 		if err != nil {
 			return nil, err
 		}
 
-		shards = append(shards, base64decode(shard))
+		shards[i] = base64decode(shard)
 	}
 	return
 }
@@ -226,7 +229,7 @@ func safeWrite(path string, data []byte, perms os.FileMode) (err error) {
 		return ioutil.WriteFile(path, data, perms)
 	}
 
-	return fmt.Errorf("attempted to write to a file that already exists: %s", path)
+	return fmt.Errorf("cannot write \"%s\"; file already exists", path)
 }
 
 // encoding and decoding helpers
