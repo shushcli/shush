@@ -1,79 +1,177 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
 
-	"github.com/shushcli/shush/shards"
+	lib "github.com/shushcli/shush/lib"
 )
 
+var (
+	errMissingSubCommand = errors.New("missing a valid sub-command")
+	errMissingShards     = errors.New("missing list of files to merge")
+
+	// gen errors
+	errMissingKeyFile = errors.New("missing name for key file")
+
+	// split errors
+	errInvalidShardCount = errors.New("invalid number of shards")
+	errInvalidThreshold  = errors.New("invalid threshhold provided")
+	errMissingPath       = errors.New("missing file path of the secret")
+
+	// encrypt/decrypt errors
+	errEncryptMissingFileArg = errors.New("missing the filename to encrypt")
+	errDecryptMissingFileArg = errors.New("missing the filename to decrypt")
+)
+
+var splitCmd = flag.NewFlagSet("split", flag.ExitOnError)
+var encryptCmd = flag.NewFlagSet("encrypt", flag.ExitOnError)
+var decryptCmd = flag.NewFlagSet("decrypt", flag.ExitOnError)
+
 func main() {
-	encryptCommand := flag.NewFlagSet("encrypt", flag.ExitOnError)
-	threshold := encryptCommand.Int("t", 0, "Threshold: How many shards are needed to reconstruct the messsage?")
-	totalShards := encryptCommand.Int("s", 0, "Shards: How many total shards will we generate")
+	err := route()
 
-	decryptCommand := flag.NewFlagSet("decrypt", flag.ExitOnError)
+	if err != nil {
+		fmt.Printf("Error: %s\n\n", err)
 
-	flag.Parse()
+		// print flags for relevant sub-command
+		if splitCmd.Parsed() {
+			fmt.Println("key split flags:")
+			splitCmd.PrintDefaults()
+		} else if encryptCmd.Parsed() {
+			fmt.Println("encrypt flags:")
+			encryptCmd.PrintDefaults()
+		} else if decryptCmd.Parsed() {
+			fmt.Println("decrypt flags:")
+			decryptCmd.PrintDefaults()
+		}
 
-	if len(os.Args) < 2 {
-		fmt.Println("encrypt or decrypt sub-command is required")
-		os.Exit(1)
-	}
+		usage()
 
-	switch os.Args[1] {
-	case "encrypt":
-		handleEncrypt(encryptCommand, totalShards, threshold)
-	case "decrypt":
-		handleDecrypt(decryptCommand)
-	default:
-		fmt.Println("encrypt or decrypt sub-command is required")
 		os.Exit(1)
 	}
 
 	os.Exit(0)
 }
 
-func handleEncrypt(encryptCommand *flag.FlagSet, totalShards *int, threshold *int) {
-	encryptCommand.Parse(os.Args[2:])
-	if *totalShards < 2 {
-		fmt.Println("invalid number of totalShards")
-		encryptCommand.PrintDefaults()
-		os.Exit(1)
-	} else if *threshold > *totalShards || *threshold < 2 {
-		fmt.Println("invalid threshhold")
-		encryptCommand.PrintDefaults()
-		os.Exit(1)
+// handle sub-commands
+func route() error {
+	if len(os.Args) < 2 {
+		return errMissingSubCommand
 	}
 
-	args := encryptCommand.Args()
-	if len(args) < 1 {
-		fmt.Print("You must include a file path to the secret as a trailing argument.\n\n")
-		fmt.Print("Example: shush encrypt -t=3 -s=6 \"secret.txt\"\n\n")
-		encryptCommand.PrintDefaults()
-		os.Exit(1)
-	}
-
-	err := shards.Create(args[0], *totalShards, *threshold)
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	switch os.Args[1] {
+	case "generate":
+		return handleGen()
+	case "split":
+		return handleSplit()
+	case "merge":
+		return handleMerge()
+	case "encrypt":
+		return handleEncrypt()
+	case "decrypt":
+		return handleDecrypt()
+	default:
+		return errMissingSubCommand
 	}
 }
 
-func handleDecrypt(decryptCommand *flag.FlagSet) {
-	decryptCommand.Parse(os.Args[2:])
-	args := decryptCommand.Args()
-	if len(args) < 1 {
-		fmt.Println("You must include a glob pattern to match the shards")
-		fmt.Print("Example: shush decrypt \"secret.txt.shard*\"")
-		os.Exit(1)
+func usage() {
+	fmt.Print(`
+USAGE:
+
+Generate a new AES Key:
+	shush key gen my.key
+
+Encrypt a secret with your key:
+	shush encrypt -key=my.key secrets.tar
+
+Split your key into 5 shards, requiring a threshold of at least 3 shards for recovery:
+	shush key split -t=3 -s=5 my.key
+	
+Merge shards back into an AES key:
+	shush key merge my.key.shard0 my.key.shard1 my.key.shard4
+
+Merge shards with a wildcard:
+	shush key merge my.key.shard*
+	
+Decrypt a secret with your key:
+	shush decrypt -key=my.key secrets.tar.shush
+`)
+}
+
+func handleGen() error {
+	if len(os.Args) < 3 {
+		return errMissingKeyFile
 	}
 
-	err := shards.Recover(args[0])
-	if err != nil {
-		fmt.Println(err)
-		os.Exit(1)
+	return lib.Gen(os.Args[2])
+}
+
+func handleSplit() error {
+	threshold := splitCmd.Int("t", 0, "Threshold: How many shards are needed to reconstruct the messsage?")
+	shardCount := splitCmd.Int("s", 0, "Shards: How many total shards will we generate")
+	splitCmd.Parse(os.Args[2:])
+
+	if *shardCount < 2 {
+		return errInvalidShardCount
+	} else if *threshold > *shardCount || *threshold < 2 {
+		return errInvalidThreshold
 	}
+
+	args := splitCmd.Args()
+	if len(args) < 1 {
+		return errMissingPath
+	}
+
+	err := lib.Split(args[0], *shardCount, *threshold)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func handleMerge() error {
+	if len(os.Args) < 3 {
+		return errMissingShards
+	}
+
+	err := lib.Merge(os.Args[2:])
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func handleEncrypt() error {
+	keyFile := encryptCmd.String("key", "", "Key: Path to your key file")
+	encryptCmd.Parse(os.Args[2:])
+
+	if *keyFile == "" {
+		return errMissingKeyFile
+	}
+
+	if len(os.Args) < 4 {
+		return errEncryptMissingFileArg
+	}
+
+	return lib.Encrypt(*keyFile, os.Args[3])
+}
+
+func handleDecrypt() error {
+	keyFile := decryptCmd.String("key", "", "Key: Path to your key file")
+	decryptCmd.Parse(os.Args[2:])
+
+	if *keyFile == "" {
+		return errMissingKeyFile
+	}
+
+	if len(os.Args) < 4 {
+		return errDecryptMissingFileArg
+	}
+
+	return lib.Decrypt(*keyFile, os.Args[3])
 }
