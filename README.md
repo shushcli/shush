@@ -1,14 +1,14 @@
 # Shush 🤫
 This simple program will help you run [Shamir's Secret Sharing](https://en.wikipedia.org/wiki/Shamir%27s_Secret_Sharing) algorithm on _any_ file using the `split` and `merge` commands. It also contains  tools to easily `generate` an [AES](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard) key and `encrypt` and `decrypt` files using said key.
 
-## Why is that useful?
-I've you've distributed the shards of an AES key to your family or team, they will be able to recover any encrypted data you left behind if you lose it, become incapacitated, or worse.
+## Why?
+If you've distributed the shards of an AES key to your team (read: family, friends, coworkers), they will be able to recover any encrypted data in case you lose it, become incapacitated, or worse.
 
-## Why not just split a key into chunks?
-With Sharmir's algorithm, you can specify a threshold for recovery that is lower than the total number of shards. This approach protects you against some members of your family or team losing their shards.
+## Can't I just split a key into chunks, and distribute the chunks?
+With Shamir's algorithm, you can specify a `threshold` for recovery that is lower than the total number of `shards`. This approach protects you against some members of your team losing their shards.
 
 ## Safely generating and distributing keys & encrypted payloads
-Run this program in a secure operating system like [Tails](https://en.wikipedia.org/wiki/Tails_%28operating_system%29) with no internet connection. Be extremely careful about how you store your key! Distribute shards to your team on physical media like flash drives. You may also want to relay information about who holds other key shards to the folks on your team, though ideally this isn't in writing or included on the flash drives.
+Run this program in [Tails](https://en.wikipedia.org/wiki/Tails_%28operating_system%29) with no internet connection. Be extremely careful about how you store your key! Distribute shards to your team on physical media (like flash drives). You may also want to notify your team members who else is on their team, but ideally that information will live in their heads, not in their emails.
 
 ## What to include when distributing keys shards
 You may want to consider including any of the following things when distributing key shards:
@@ -25,47 +25,29 @@ Since the payload likely has sensitive contents, you should take similar precaut
 If you hold onto your original AES key, you can create new encrypted payloads whenever you want, and redistribute them or put them online without having to generate new keys or distribute new key shards.
 
 ## Usage
-### 1) Generate a new AES Key:
+
+### Encrypt and Decrypt Files
 ```bash
-# shush generate <filename>
+# Generate a new AES Key
 shush generate my.key
-```
 
-### 2) Encrypt a secret file or archive with your AES Key:
-```bash
+# Encrypt a secret file or archive with your AES Key
 shush encrypt -key=my.key secrets.tar
-```
 
-Which will write an encrypted payload file to disk:
-```
-secrets.tar.shush
-```
-
-### 3) Split the key into 5 shards, requiring a threshold of at least 3 shards for recovery:
-```bash
-shush split -t=3 -s=5 my.key
-```
-
-Which will write the following shards to disk:
-```
-my.key.shard0
-my.key.shard1
-my.key.shard2
-my.key.shard3
-my.key.shard4
-```
-
-### 4) Distribute the keys (and secrets) to a team of trusted parties (do this offline), and wait for something bad to happen.
-
-### 5) Someone from your team will recollect some of the original shards, and merge them back into an AES key:
-```bash
-# Note that the shard format allows you to use a wildcard: my.key.shard*
-shush merge my.key.shard0 my.key.shard2 my.key.shard4
-```
-
-### 6) Recover the payload using the recombined key
-```bash
+# Decrypt a payload using an AES key
 shush decrypt -key=my.key secrets.tar.shush
+```
+
+### Split and Merge Files
+```bash
+# Split a file into 5 shards, requiring a threshold of at least 3 shards for recovery
+shush split -t=3 -s=5 my.key
+
+# Merge shards back into the original file
+shush merge my.key.shard0 my.key.shard2 my.key.shard4
+
+# You can also use a wildcard if the names are preserved.
+shush merge my.key.shard*
 ```
 
 ## Building & Installing
