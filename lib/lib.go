@@ -9,21 +9,23 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path"
 	"path/filepath"
 	"strings"
 
 	"github.com/hashicorp/vault/shamir"
 )
 
-const nonceSize = 12
-const suffix = ".shush"
+const (
+	keySize   = 32
+	nonceSize = 12
+	suffix    = ".shush"
+)
 
 var errInvalidKey = errors.New("invalid key file provided")
 
 // Gen creates a new aes key and writes it to disk
 func Gen(keyName string) error {
-	key := make([]byte, 32)
+	key := make([]byte, keySize)
 	_, err := rand.Read(key)
 	if err != nil {
 		return err
@@ -38,8 +40,8 @@ func Gen(keyName string) error {
 }
 
 // Split reads the fileName, and writes the shards to disk
-func Split(fileName string, parts int, threshold int) error {
-	secret, err := ioutil.ReadFile(fileName)
+func Split(file string, parts int, threshold int) error {
+	secret, err := ioutil.ReadFile(file)
 	if err != nil {
 		return err
 	}
@@ -49,7 +51,7 @@ func Split(fileName string, parts int, threshold int) error {
 		return err
 	}
 
-	shardNames, err := writeFiles(fileName, shards)
+	shardNames, err := writeShards(file, shards)
 	if err != nil {
 		return err
 	}
@@ -106,7 +108,7 @@ func Encrypt(keyFile string, file string) error {
 	}
 
 	key := base64decode(b64key)
-	if len(key) != 32 {
+	if len(key) != keySize {
 		return errInvalidKey
 	}
 
@@ -151,7 +153,7 @@ func Decrypt(keyFile string, file string) error {
 	}
 
 	key := base64decode(b64key)
-	if len(key) != 32 {
+	if len(key) != keySize {
 		return errInvalidKey
 	}
 
@@ -193,16 +195,11 @@ func Decrypt(keyFile string, file string) error {
 }
 
 // file reading and writing stuff
-func writeFiles(secret string, shards [][]byte) (shardFiles []string, err error) {
-	cwd, err := os.Getwd()
-	if err != nil {
-		return nil, err
-	}
-
+func writeShards(originalFileName string, shards [][]byte) (shardFiles []string, err error) {
 	for i, shard := range shards {
-		fileName := fmt.Sprintf("%s.shard%d", secret, i)
+		fileName := fmt.Sprintf("%s.shard%d", originalFileName, i)
 		shardFiles = append(shardFiles, fileName)
-		err = safeWrite(path.Join(cwd, shardFiles[i]), base64encode(shard), 0600)
+		err = safeWrite(shardFiles[i], base64encode(shard), 0600)
 		if err != nil {
 			return nil, err
 		}
