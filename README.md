@@ -1,6 +1,8 @@
 # Shush 🤫
 This simple program will help you run [Shamir's Secret Sharing](https://en.wikipedia.org/wiki/Shamir%27s_Secret_Sharing) algorithm on _any_ file using the `split` and `merge` commands. It also contains  tools to easily `generate` an [AES](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard) key and `encrypt` and `decrypt` files using said key.
 
+There is a [bitcoin bounty](https://github.com/shushcli/shush/issues/1) ready to be claimed if you can bypass this scheme.
+
 **This is not security-hardened code. Use at your own risk.**
 
 ## Usage
