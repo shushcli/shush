@@ -4,6 +4,8 @@ This simple program will help you run [Shamir's Secret Sharing](https://en.wikip
 **This is not security-hardened code. Use at your own risk.**
 
 ## Usage
+![Screen recording of shush usage](docs/demo.gif)
+
 ### Encrypt and Decrypt Files
 ```bash
 # Generate a new AES Key
