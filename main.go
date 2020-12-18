@@ -18,7 +18,7 @@ var (
 
 	// split errors
 	errInvalidShardCount = errors.New("invalid number of shards")
-	errInvalidThreshold  = errors.New("invalid threshhold provided")
+	errInvalidThreshold  = errors.New("invalid threshold provided")
 	errMissingPath       = errors.New("missing file path of the secret")
 
 	// encrypt/decrypt errors

@@ -42,6 +42,8 @@ func Gen(keyName string) error {
 		return err
 	}
 
+	fmt.Printf("Wrote key to %s\n\n", keyName)
+
 	return nil
 }
 
@@ -66,7 +68,7 @@ func Split(file string, parts int, threshold int) error {
 	for _, f := range shardNames {
 		fmt.Println(" ", f)
 	}
-	fmt.Print("\n\n")
+	fmt.Print("\n")
 
 	return nil
 }
@@ -86,7 +88,7 @@ func Merge(files []string) error {
 	for _, f := range files {
 		fmt.Println(" ", filepath.Base(f))
 	}
-	fmt.Print("\n\n")
+	fmt.Print("\n")
 
 	result, err := shamir.Combine(shards)
 	if err != nil {
