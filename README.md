@@ -30,7 +30,7 @@ shush split -t=3 -s=5 my.key
 # Merge shards back into the original file
 shush merge my.key.shard0 my.key.shard2 my.key.shard4
 
-# You can also use a wildcard if the names are preserved.
+# On unix you can also use a wildcard, if the names are preserved.
 shush merge my.key.shard*
 ```
 
