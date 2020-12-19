@@ -3,6 +3,8 @@ This simple program will help you run [Shamir's Secret Sharing](https://en.wikip
 
 There is a [bitcoin bounty](https://github.com/shushcli/shush/issues/1) ready to be claimed if you can bypass this scheme.
 
+If you are *backing up a bitcoin wallet*, you might be better off doing something with multisig. This article summarizes some of the [drawbacks of Shamir](https://blog.keys.casa/shamirs-secret-sharing-security-shortcomings/), but I think in some cases it's still a good solution!
+
 **This is not security-hardened code. Use at your own risk.**
 
 ## Usage
